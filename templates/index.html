@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spoiler Detector — NLP Kelompok 3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0f0f12;
+      --surface:   #18181e;
+      --surface2:  #202028;
+      --border:    rgba(255,255,255,0.08);
+      --border2:   rgba(255,255,255,0.14);
+      --text:      #e8e8ec;
+      --muted:     #7a7a8a;
+      --accent:    #c084fc;
+      --accent-dim:#7c3aed22;
+      --red:       #f87171;
+      --red-bg:    #3b1313;
+      --red-border:#7f1d1d;
+      --green:     #86efac;
+      --green-bg:  #0d2b1a;
+      --green-border:#14532d;
+      --amber:     #fbbf24;
+      --radius:    12px;
+      --radius-sm: 8px;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    /* HEADER */
+    header { border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; background: var(--surface); }
+    .logo-icon { width: 38px; height: 38px; border-radius: var(--radius-sm); background: linear-gradient(135deg, #7c3aed, #c084fc); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .logo-text h1 { font-family: 'Playfair Display', serif; font-size: 1.15rem; font-weight: 700; color: #fff; line-height: 1; }
+    .logo-text p  { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+    .header-badge { margin-left: auto; font-size: 0.68rem; font-weight: 500; padding: 4px 12px; border-radius: 999px; background: var(--accent-dim); color: var(--accent); border: 1px solid #7c3aed44; }
+    /* PAGE TABS */
+    .page-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 2rem; }
+    .page-tab { font-size: 0.82rem; font-weight: 500; padding: 0.75rem 1.25rem; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; background: none; border-left: none; border-right: none; border-top: none; font-family: 'DM Sans', sans-serif; }
+    .page-tab:hover { color: var(--text); }
+    .page-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    /* LAYOUT */
+    .container { max-width: 860px; margin: 0 auto; padding: 1.75rem 1.5rem 4rem; width: 100%; flex: 1; }
+    .page { display: none; }
+    .page.active { display: block; }
+    /* STATUS BAR */
+    #status-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .status-chip { font-size: 0.68rem; font-weight: 500; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 5px; }
+    .status-chip.ok   { border-color: #14532d; background: #0d2b1a; color: var(--green); }
+    .status-chip.miss { border-color: #7f1d1d; background: #3b1313; color: var(--red); }
+    .status-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    /* CARD */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
+    .card-title { font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin-bottom: 0.75rem; }
+    /* INPUTS */
+    input[type="text"], textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.88rem; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
+    input[type="text"]:focus, textarea:focus { border-color: #7c3aed88; }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    textarea { resize: vertical; min-height: 110px; line-height: 1.6; }
+    .book-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .char-count { text-align: right; font-size: 0.7rem; color: var(--muted); margin-top: 5px; }
+    .char-count.warn { color: var(--amber); }
+    /* CHIPS */
+    .example-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+    .example-label { font-size: 0.7rem; color: var(--muted); flex-shrink: 0; }
+    .chip { font-size: 0.72rem; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border2); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    /* MODEL TABS */
+    .model-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .model-tab { padding: 9px 4px; border: 1px solid var(--border2); border-radius: var(--radius-sm); background: var(--surface2); color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 0.78rem; font-weight: 500; cursor: pointer; text-align: center; transition: all 0.15s; }
+    .model-tab:hover { border-color: #7c3aed66; color: var(--text); }
+    .model-tab.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+    .model-desc { font-size: 0.7rem; color: var(--muted); margin-top: 8px; line-height: 1.5; min-height: 2.5em; }
+    /* BUTTON */
+    .analyze-btn { width: 100%; padding: 12px; border-radius: var(--radius-sm); border: 1px solid #7c3aed66; background: linear-gradient(135deg, #7c3aed18, #c084fc12); color: var(--accent); font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+    .analyze-btn:hover { background: linear-gradient(135deg, #7c3aed30, #c084fc20); border-color: var(--accent); }
+    .analyze-btn:active { transform: scale(0.99); }
+    .analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #7c3aed44; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.65s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* RESULT */
+    #result-area { margin-top: 1rem; }
+    .result-card { border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; animation: fadeUp 0.3s ease; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .result-card.spoiler { border-color: var(--red-border); background: linear-gradient(160deg, #1e0a0a, var(--surface)); }
+    .result-card.safe    { border-color: var(--green-border); background: linear-gradient(160deg, #071a0f, var(--surface)); }
+    .result-header { padding: 1rem 1.25rem; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); }
+    .verdict-icon { font-size: 1.5rem; }
+    .verdict-text h2 { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 700; }
+    .result-card.spoiler .verdict-text h2 { color: var(--red); }
+    .result-card.safe    .verdict-text h2 { color: var(--green); }
+    .verdict-text p { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .confidence-block { margin-left: auto; text-align: right; }
+    .confidence-block .conf-num { font-size: 1.6rem; font-weight: 500; line-height: 1; }
+    .result-card.spoiler .conf-num { color: var(--red); }
+    .result-card.safe    .conf-num { color: var(--green); }
+    .confidence-block .conf-label { font-size: 0.67rem; color: var(--muted); margin-top: 2px; }
+    .result-body { padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+    .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .meta-item { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+    .meta-item-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+    .meta-item-val   { font-size: 1rem; font-weight: 500; margin-top: 3px; }
+    .prob-row { display: flex; flex-direction: column; gap: 8px; }
+    .prob-item-label { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 4px; }
+    .prob-track { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .prob-fill { height: 100%; border-radius: 3px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+    .fill-red   { background: var(--red); }
+    .fill-green { background: var(--green); }
+    .section-mini-label { font-size: 0.67rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+    .processed-text { font-size: 0.78rem; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; line-height: 1.6; font-style: italic; word-break: break-word; }
+    /* HISTORY */
+    .history-list { display: flex; flex-direction: column; }
+    .hist-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .hist-item:last-child { border-bottom: none; }
+    .hist-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+    .hist-text { font-size: 0.78rem; color: var(--muted); flex: 1; line-height: 1.4; }
+    .hist-verdict { font-size: 0.7rem; font-weight: 500; flex-shrink: 0; }
+    .hist-verdict.s { color: var(--red); }
+    .hist-verdict.n { color: var(--green); }
+    .empty-state { text-align: center; padding: 1.5rem; font-size: 0.8rem; color: var(--muted); }
+    .error-box { background: var(--red-bg); border: 1px solid var(--red-border); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 0.8rem; color: var(--red); display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+    /* METRIK PAGE */
+    .metrics-loading { text-align: center; padding: 3rem; color: var(--muted); font-size: 0.85rem; }
+    .metrics-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 0.8rem; }
+    thead th { background: var(--surface2); padding: 10px 14px; text-align: left; font-weight: 500; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); border-bottom: 1px solid var(--border2); }
+    thead th:not(:first-child) { text-align: center; }
+    tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+    tbody td:not(:first-child) { text-align: center; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface2); }
+    .badge-best { display: inline-block; font-size: 0.62rem; font-weight: 500; padding: 2px 7px; border-radius: 999px; background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); margin: 3px 4px 0 0; vertical-align: middle; }
+    .model-name-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 0; row-gap: 2px; }
+    .metric-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1rem; }
+    .metric-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem 1.1rem; }
+    .metric-card-label { font-size: 0.67rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+    .metric-card-model { font-size: 0.78rem; font-weight: 500; margin-top: 4px; color: var(--accent); }
+    .metric-card-val   { font-size: 1.3rem; font-weight: 500; margin-top: 2px; }
+    .note-box { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.75rem; color: var(--muted); line-height: 1.6; margin-top: 0.75rem; }
+    .confusion-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    footer { border-top: 1px solid var(--border); text-align: center; padding: 1rem; font-size: 0.7rem; color: var(--muted); }
+    @media (max-width: 540px) {
+      header { padding: 0.85rem 1rem; gap: 0.7rem; }
+      .logo-icon { width: 32px; height: 32px; font-size: 15px; }
+      .logo-text h1 { font-size: 1rem; }
+      .logo-text p { font-size: 0.62rem; }
+      .header-badge { font-size: 0.6rem; padding: 3px 9px; white-space: nowrap; }
+      .page-tabs { padding: 0 1rem; overflow-x: auto; }
+      .page-tab { padding: 0.7rem 1rem; font-size: 0.78rem; white-space: nowrap; }
+      .container { padding: 1.25rem 1rem 3rem; }
+      .card { padding: 1.1rem; }
+      .book-row { grid-template-columns: 1fr; }
+      .model-grid { grid-template-columns: repeat(3, 1fr); }
+      .model-tab { font-size: 0.7rem; padding: 8px 3px; }
+      .meta-grid { grid-template-columns: repeat(2, 1fr); }
+      .metric-cards { grid-template-columns: 1fr; }
+      .result-header { padding: 0.9rem 1rem; flex-wrap: wrap; }
+      .confidence-block { margin-left: 0; text-align: left; width: 100%; }
+      .result-body { padding: 1rem; }
+      table { min-width: 480px; font-size: 0.74rem; }
+      thead th, tbody td { padding: 8px 10px; }
+    }
+    @media (max-width: 380px) {
+      .model-grid { grid-template-columns: repeat(2, 1fr); }
+      .logo-text p { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">📖</div>
+  <div class="logo-text">
+    <h1>Spoiler Detector</h1>
+    <p>Deteksi spoiler review novel misteri berbahasa Indonesia</p>
+  </div>
+  <span class="header-badge">NLP · Kelompok 3</span>
+</header>
+
+<div class="page-tabs">
+  <button class="page-tab active" onclick="switchPage('detect', this)">Deteksi Spoiler</button>
+  <button class="page-tab" onclick="switchPage('metrics', this)">Metrik Evaluasi</button>
+</div>
+
+<div class="container">
+
+  <!-- PAGE DETEKSI -->
+  <div class="page active" id="page-detect">
+
+    <div id="status-bar"><span class="status-chip">Memeriksa model...</span></div>
+
+    <div class="card">
+      <div class="card-title">Informasi buku</div>
+      <div class="book-row">
+        <input type="text" id="book-title"  placeholder="Judul buku…" />
+        <input type="text" id="book-author" placeholder="Penulis…" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Teks review</div>
+      <textarea id="review-input" placeholder="Masukkan teks review di sini. Minimal 20 karakter." oninput="onInput()" rows="4"></textarea>
+      <div class="char-count" id="char-count">0 karakter</div>
+      <div class="example-row">
+        <span class="example-label">Coba contoh:</span>
+        <button class="chip" onclick="setExample('nonspoiler')">Non-spoiler</button>
+        <button class="chip" onclick="setExample('spoiler')">Spoiler</button>
+        <button class="chip" onclick="setExample('ambigu')">Ambigu</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Model klasifikasi</div>
+      <div class="model-grid">
+        <button class="model-tab active" data-model="bert" onclick="selectModel(this)">IndoBERT</button>
+        <button class="model-tab" data-model="svm"  onclick="selectModel(this)">SVM</button>
+        <button class="model-tab" data-model="rf"   onclick="selectModel(this)">Random Forest</button>
+        <button class="model-tab" data-model="lstm" onclick="selectModel(this)">BiLSTM</button>
+        <button class="model-tab" data-model="xgb"  onclick="selectModel(this)">XGBoost</button>
+      </div>
+      <div class="model-desc" id="model-desc">IndoBERT (indobenchmark/indobert-base-p2) fine-tuned. Model transformer terkuat, AUC-ROC tertinggi di antara semua model.</div>
+    </div>
+
+    <button class="analyze-btn" id="analyze-btn" onclick="analyze()">
+      <span id="btn-content">Analisis Review</span>
+    </button>
+
+    <div id="result-area"></div>
+
+    <div class="card" style="margin-top:1.5rem">
+      <div class="card-title">Riwayat analisis</div>
+      <div id="history-area"><div class="empty-state">Belum ada analisis</div></div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: METRIK -->
+  <div class="page" id="page-metrics">
+    <div id="metrics-content"><div class="metrics-loading">Memuat data metrik...</div></div>
+  </div>
+
+</div>
+
+<footer>NLP Kelompok 3 · Deteksi Spoiler Review Buku Goodreads · 2026</footer>
+
+<script>
+/* STATE */
+let selectedModel = 'bert';
+let history = [];
+let metricsLoaded = false;
+const MODEL_DESC = {
+  bert : 'IndoBERT (indobenchmark/indobert-base-p2) fine-tuned. Model transformer terkuat, AUC-ROC tertinggi di antara semua model.',
+  svm : 'SVM dengan kernel linear + TF-IDF via Pipeline. Threshold optimal: 0.2020.',
+  rf : 'Random Forest ensemble + TF-IDF via Pipeline. Threshold optimal: 0.4229.',
+  lstm : 'Bidirectional LSTM + FastText embedding (cc.id.300). Threshold di-tune di validation set.',
+  xgb : 'XGBoost gradient boosting + TF-IDF via Pipeline. Menangani imbalanced data dengan scale_pos_weight.'
+};
+const EXAMPLES = {
+  nonspoiler : 'Novel ini luar biasa! Alur ceritanya menegangkan dari awal hingga akhir. Karakter detektifnya sangat menarik dan penuh dimensi. Saya benar-benar tidak bisa berhenti membaca. Sangat direkomendasikan untuk penggemar thriller misteri!',
+  spoiler : 'Buku ini twist-nya gila banget. Ternyata si pembunuhnya adalah sahabat lama protagonis yang selama ini dikira sudah mati. Ending-nya bikin syok karena pelakunya sendiri yang akhirnya bunuh diri setelah mengaku. Motifnya balas dendam karena kejadian 20 tahun lalu.',
+  ambigu : 'Bagian akhir buku ini bikin saya nangis dan speechless. Ada satu adegan yang benar-benar tidak saya sangka sama sekali. Penulis berhasil menyembunyikan clue-nya dengan sangat rapi sepanjang cerita. Tanpa spoiler, pokoknya kalian harus baca sendiri.'
+};
+/* PAGE SWITCH */
+function switchPage(page, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  el.classList.add('active');
+  if (page === 'metrics' && !metricsLoaded) loadMetrics();
+}
+/* INIT */
+window.addEventListener('DOMContentLoaded', checkStatus);
+async function checkStatus() {
+  try {
+    const res  = await fetch('/status');
+    const data = await res.json();
+    renderStatus(data.models);
+  } catch {
+    document.getElementById('status-bar').innerHTML =
+      '<span class="status-chip miss"><span class="dot"></span>Server tidak terhubung</span>';
+  }
+}
+function renderStatus(models) {
+  const labels = { svm:'SVM', rf:'Random Forest', xgb:'XGBoost', tokenizer:'Tokenizer', lstm:'BiLSTM', bert:'IndoBERT' };
+  document.getElementById('status-bar').innerHTML =
+    Object.entries(models).map(([k, ok]) =>
+      `<span class="status-chip ${ok ? 'ok' : 'miss'}"><span class="dot"></span>${labels[k]||k}</span>`
+    ).join('');
+}
+/* HELPERS */
+function setExample(type) {
+  document.getElementById('review-input').value = EXAMPLES[type];
+  onInput();
+}
+function onInput() {
+  const len = document.getElementById('review-input').value.length;
+  const el  = document.getElementById('char-count');
+  el.textContent = `${len} karakter`;
+  el.className   = 'char-count' + (len < 20 && len > 0 ? ' warn' : '');
+}
+function selectModel(el) {
+  document.querySelectorAll('.model-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  selectedModel = el.dataset.model;
+  document.getElementById('model-desc').textContent = MODEL_DESC[selectedModel];
+}
+/* ANALYZE */
+async function analyze() {
+  const text = document.getElementById('review-input').value.trim();
+  if (!text) { alert('Masukkan teks review terlebih dahulu.'); return; }
+  if (text.length < 20) { alert('Teks terlalu pendek. Minimal 20 karakter.'); return; }
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  document.getElementById('btn-content').innerHTML = '<span class="spinner"></span> Menganalisis...';
+  try {
+    const res  = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model: selectedModel })
+    });
+    const data = await res.json();
+    if (data.error) showError(data.error);
+    else { renderResult(data); addHistory(text, data); }
+  } catch {
+    showError('Tidak dapat terhubung ke server. Pastikan app.py sudah berjalan.');
+  } finally {
+    btn.disabled = false;
+    document.getElementById('btn-content').textContent = 'Analisis Review';
+  }
+}
+function renderResult(d) {
+  const cls      = d.is_spoiler ? 'spoiler' : 'safe';
+  const icon     = d.is_spoiler ? '⚠️' : '✅';
+  const headline = d.is_spoiler ? 'Review Mengandung Spoiler' : 'Review Aman dari Spoiler';
+  const sub      = d.is_spoiler
+    ? 'Teks ini kemungkinan besar mengungkap isi cerita secara eksplisit.'
+    : 'Teks ini tidak terdeteksi mengandung informasi yang merusak pengalaman membaca.';
+  const confVal  = d.is_spoiler ? d.prob_spoiler : d.prob_nonspoiler;
+  document.getElementById('result-area').innerHTML = `
+    <div class="result-card ${cls}">
+      <div class="result-header">
+        <span class="verdict-icon">${icon}</span>
+        <div class="verdict-text"><h2>${headline}</h2><p>${sub}</p></div>
+        <div class="confidence-block">
+          <div class="conf-num">${confVal}%</div>
+          <div class="conf-label">keyakinan model</div>
+        </div>
+      </div>
+      <div class="result-body">
+        <div class="meta-grid">
+          <div class="meta-item"><div class="meta-item-label">Model</div><div class="meta-item-val">${d.model_used}</div></div>
+          <div class="meta-item"><div class="meta-item-label">Panjang input</div><div class="meta-item-val">${d.input_length} kar</div></div>
+          <div class="meta-item"><div class="meta-item-label">Setelah clean</div><div class="meta-item-val">${d.clean_length} kar</div></div>
+        </div>
+        <div class="prob-row">
+          <div>
+            <div class="prob-item-label"><span style="color:#f87171">⚠ Spoiler</span><span>${d.prob_spoiler}%</span></div>
+            <div class="prob-track"><div class="prob-fill fill-red" style="width:${d.prob_spoiler}%"></div></div>
+          </div>
+          <div>
+            <div class="prob-item-label"><span style="color:#86efac">✓ Non-spoiler</span><span>${d.prob_nonspoiler}%</span></div>
+            <div class="prob-track"><div class="prob-fill fill-green" style="width:${d.prob_nonspoiler}%"></div></div>
+          </div>
+        </div>
+        ${d.text_processed ? `<div><div class="section-mini-label">Teks setelah preprocessing</div><div class="processed-text">${escHtml(d.text_processed)}</div></div>` : ''}
+      </div>
+    </div>`;
+}
+function showError(msg) {
+  document.getElementById('result-area').innerHTML =
+    `<div class="error-box"><span>${escHtml(msg)}</span></div>`;
+}
+function addHistory(text, d) {
+  const snippet = text.length > 70 ? text.slice(0, 70) + '…' : text;
+  history.unshift({ snippet, isSpoiler: d.is_spoiler, prob: d.is_spoiler ? d.prob_spoiler : d.prob_nonspoiler, model: d.model_used });
+  if (history.length > 6) history.pop();
+  document.getElementById('history-area').innerHTML = '<div class="history-list">' +
+    history.map(h => `
+      <div class="hist-item">
+        <div class="hist-dot" style="background:${h.isSpoiler ? '#f87171' : '#86efac'}"></div>
+        <div class="hist-text">${escHtml(h.snippet)}</div>
+        <span class="hist-verdict ${h.isSpoiler ? 's' : 'n'}">${h.isSpoiler ? 'Spoiler' : 'Aman'} · ${h.prob}%</span>
+      </div>`).join('') + '</div>';
+}
+/* METRICS PAGE */
+async function loadMetrics() {
+  metricsLoaded = true;
+  const el = document.getElementById('metrics-content');
+  try {
+    const res  = await fetch('/metrics');
+    const data = await res.json();
+    if (data.error) {
+      el.innerHTML = `<div class="error-box">${escHtml(data.error)}</div>`;
+      return;
+    }
+    renderMetrics(data);
+  } catch {
+    el.innerHTML = '<div class="error-box">Tidak dapat terhubung ke server.</div>';
+  }
+}
+function renderMetrics(data) {
+  const models = data.models || {};
+  // urutan sesuai tabel penelitian: IndoBERT, SVM, RF, BiLSTM, XGBoost
+  const ORDER = ['IndoBERT', 'SVM', 'RF', 'BiLSTM', 'XGBoost'];
+  const names = ORDER.filter(n => models[n]);
+  if (!names.length) {
+    document.getElementById('metrics-content').innerHTML =
+      '<div class="empty-state">Tidak ada data metrik tersedia.</div>';
+    return;
+  }
+  // cari model terbaik per metrik
+  const bestAUC = names.reduce((a, b) => (models[a].auc_roc  || 0) >= (models[b].auc_roc  || 0) ? a : b);
+  const bestF1  = names.reduce((a, b) => (models[a].f1_1     || 0) >= (models[b].f1_1     || 0) ? a : b);
+  const bestRec = names.reduce((a, b) => (models[a].recall_1 || 0) >= (models[b].recall_1 || 0) ? a : b);
+  const fmtR = v => v != null ? v.toFixed(4) : '—';
+  const fmtT = v => v != null ? v.toFixed(2) : '—';
+  // summary cards
+  const summaryHtml = `
+    <div class="metric-cards">
+      <div class="metric-card">
+        <div class="metric-card-label">AUC-ROC Tertinggi</div>
+        <div class="metric-card-model">${bestAUC}</div>
+        <div class="metric-card-val">${fmtR(models[bestAUC]?.auc_roc)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">F1 Spoiler Tertinggi</div>
+        <div class="metric-card-model">${bestF1}</div>
+        <div class="metric-card-val">${fmtR(models[bestF1]?.f1_1)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Recall Spoiler Tertinggi</div>
+        <div class="metric-card-model">${bestRec}</div>
+        <div class="metric-card-val">${fmtR(models[bestRec]?.recall_1)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Total Model Dievaluasi</div>
+        <div class="metric-card-model">—</div>
+        <div class="metric-card-val">${names.length}</div>
+      </div>
+    </div>`;
+  // tabel — urutan kolom sesuai tabel penelitian
+  const rows = names.map(n => {
+    const m = models[n];
+    const badges = [
+      n === bestAUC ? '<span class="badge-best">best AUC</span>' : '',
+      n === bestF1  ? '<span class="badge-best">best F1</span>'  : '',
+      n === bestRec ? '<span class="badge-best">best Recall</span>' : ''
+    ].join('');
+    return `
+      <tr>
+        <td><div class="model-name-cell"><strong style="margin-right:6px">${n}</strong>${badges}</div></td>
+        <td>${fmtT(m.threshold)}</td>
+        <td>${fmtR(m.auc_roc)}</td>
+        <td>${fmtR(m.f1_1)}</td>
+        <td>${fmtR(m.precision_1)}</td>
+        <td>${fmtR(m.recall_1)}</td>
+        <td>${fmtR(m.f1_macro)}</td>
+      </tr>`;
+  }).join('');
+  const tableHtml = `
+    <div class="metrics-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Threshold</th>
+            <th>AUC-ROC ↑</th>
+            <th>F1 Spoiler</th>
+            <th>Precision Spoiler</th>
+            <th>Recall Spoiler</th>
+            <th>F1 Macro</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="note-box">
+      ↑ semakin tinggi semakin baik &nbsp;·&nbsp;
+      AUC-ROC adalah metrik utama karena tidak terpengaruh threshold dan stabil untuk imbalanced data (91.2% non-spoiler vs 8.8% spoiler) &nbsp;·&nbsp;
+      Threshold untuk BiLSTM dan IndoBERT di-tune di validation set, bukan test set &nbsp;·&nbsp;
+      Sumber: Hasil Penelitian, 2026
+    </div>`;
+  // detail card dan confusion matrix
+  function renderDetailCard(name, m) {
+    if (!m || m.tp == null) return '';
+    return `
+    <div class="card">
+      <div class="card-title">Detail Metrik ${name} (Threshold Optimal: ${fmtT(m.threshold)})</div>
+      <div class="metric-cards" style="grid-template-columns:repeat(3,1fr);margin-bottom:0.75rem">
+        <div class="metric-card">
+          <div class="metric-card-label">AUC-ROC</div>
+          <div class="metric-card-val">${fmtR(m.auc_roc)}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card-label">F1 Makro</div>
+          <div class="metric-card-val">${fmtR(m.f1_macro)}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card-label">F1 Spoiler</div>
+          <div class="metric-card-val">${fmtR(m.f1_1)}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card-label">Presisi Spoiler</div>
+          <div class="metric-card-val">${fmtR(m.precision_1)}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card-label">Recall Spoiler</div>
+          <div class="metric-card-val">${fmtR(m.recall_1)}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card-label">F1 Non-Spoiler</div>
+          <div class="metric-card-val">${fmtR(m.f1_0)}</div>
+        </div>
+      </div>
+      <div class="section-mini-label" style="margin-bottom:8px">Confusion Matrix</div>
+      <div class="confusion-wrap">
+      <table style="width:auto;min-width:280px">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Prediksi Non-Spoiler</th>
+            <th>Prediksi Spoiler</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Aktual Non-Spoiler</strong></td>
+            <td style="color:#86efac;text-align:center"><strong>TN = ${m.tn}</strong></td>
+            <td style="color:#f87171;text-align:center">FP = ${m.fp}</td>
+          </tr>
+          <tr>
+            <td><strong>Aktual Spoiler</strong></td>
+            <td style="color:#f87171;text-align:center">FN = ${m.fn}</td>
+            <td style="color:#86efac;text-align:center"><strong>TP = ${m.tp}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+  }
+  const detailHtml = names.map(n => renderDetailCard(n, models[n])).join('');
+  document.getElementById('metrics-content').innerHTML =
+    `<div class="card"><div class="card-title">Performa Terbaik</div>${summaryHtml}</div>` +
+    `<div class="card"><div class="card-title">Perbandingan Performa Lima Model pada Data Uji (Threshold Optimal)</div>${tableHtml}</div>` +
+    detailHtml;
+}
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
